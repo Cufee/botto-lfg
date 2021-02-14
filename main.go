@@ -20,11 +20,10 @@ var token string
 var eventChan = make(chan int, 1)
 
 func init() {
-
 	var err error
 	token, err = utils.LoadToken("config/token.dat")
 	if err != nil {
-		log.Fatal(err)
+		panic("please create a config/token.dat file and place a Discord Bot token in that file")
 	}
 }
 
