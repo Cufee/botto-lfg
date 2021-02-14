@@ -5,22 +5,22 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/cufee/botto-lfg/config"
+	"github.com/cufee/botto-lfg/database"
 	"github.com/cufee/botto-lfg/utils"
 )
 
 var token string
-
-// Channels
-var channelNames map[string][]int = make(map[string][]int)
-
-// Enebled cats
-var enabledCats []string = []string{"809954293422751794"}
+var eventChan = make(chan int, 1)
 
 func init() {
+
 	var err error
 	token, err = utils.LoadToken("config/token.dat")
 	if err != nil {
@@ -39,7 +39,11 @@ func main() {
 	// Event handlers
 
 	// Add Voice channel handler
-	dg.AddHandler(channelJoinedHandler)
+	dg.AddHandler(voiceEvents)
+
+	// Enable/Disable bot for a category
+	dg.AddHandler(addCatCommand)
+	dg.AddHandler(removeCatCommand)
 
 	// Open a websocket connection to Discord and begin listening.
 	err = dg.Open()
@@ -59,7 +63,66 @@ func main() {
 	}()
 }
 
-func channelJoinedHandler(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
+// addCatCommand - Add a category for the bot to watch
+func addCatCommand(s *discordgo.Session, e *discordgo.MessageCreate) {
+	var command string = (config.BotPrefix + "watchcat")
+	// Check for prefix
+	if !strings.HasPrefix(e.Content, command) {
+		return
+	}
+
+	// Get category id
+	catID := strings.TrimSpace(strings.ReplaceAll(e.Content, command, ""))
+	channel, err := s.State.GuildChannel(e.GuildID, catID)
+	if err != nil {
+		s.ChannelMessageSend(e.ChannelID, "Failed to find a channel with this ID, does the bot have proper perms?")
+		return
+	}
+	if channel.Type != discordgo.ChannelTypeGuildCategory {
+		s.ChannelMessageSend(e.ChannelID, "This channel is not a category, please copy and ID from the category you want me to watch.")
+		return
+	}
+
+	// Write to DB
+	if err = database.EnableGuildCategory(e.GuildID, catID); err != nil {
+		s.ChannelMessageSend(e.ChannelID, "Failed to add this category to my database.")
+		return
+	}
+
+	s.ChannelMessageSend(e.ChannelID, fmt.Sprintf("I am now watching %v.", channel.Name))
+}
+
+// removeCatCommand - Add a category for the bot to watch
+func removeCatCommand(s *discordgo.Session, e *discordgo.MessageCreate) {
+	var command string = (config.BotPrefix + "lookaway")
+	// Check for prefix
+	if !strings.HasPrefix(e.Content, command) {
+		return
+	}
+
+	// Get category id
+	catID := strings.TrimSpace(strings.ReplaceAll(e.Content, command, ""))
+	channel, err := s.State.GuildChannel(e.GuildID, catID)
+	if err != nil {
+		s.ChannelMessageSend(e.ChannelID, "Failed to find a channel with this ID, does the bot have proper perms?")
+		return
+	}
+	if channel.Type != discordgo.ChannelTypeGuildCategory {
+		s.ChannelMessageSend(e.ChannelID, "This channel is not a category, please copy and ID from the category you want me to watch.")
+		return
+	}
+
+	// Write to DB
+	if err = database.DisableGuildCategory(e.GuildID, catID); err != nil {
+		s.ChannelMessageSend(e.ChannelID, "Failed to remove this category from my database.")
+		return
+	}
+
+	s.ChannelMessageSend(e.ChannelID, fmt.Sprintf("I am no longer watching %v.", channel.Name))
+}
+
+// voiceEvents - Handler for voice stats updates
+func voiceEvents(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
 	// Get guild from State cache
 	guild, err := s.State.Guild(e.GuildID)
 	if err != nil {
@@ -67,8 +130,31 @@ func channelJoinedHandler(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
 		return
 	}
 
+	// Check for pending events
+	select {
+	case eventChan <- 1: // Put 1 in the channel unless it is full
+	default:
+		// Event pending, return
+		return
+	}
+	defer func() { <-eventChan }()
+
+	// Sleep to avoid spam
+	if config.UpdateDelataySec > 0 {
+		time.Sleep(time.Second * time.Duration(config.UpdateDelataySec))
+	}
+
 	// Map to store member count per channel
 	var validChannels map[string][]*discordgo.Channel = make(map[string][]*discordgo.Channel)
+
+	// Enebled cats
+	var enabledCats []string = database.GetGuildCategories(e.GuildID)
+
+	// Valid channel IDs
+	var validNames map[int]bool = make(map[int]bool)
+
+	// Channel name template
+	var nameTemplate string
 
 	// Get a list of channels
 	for _, channel := range guild.Channels {
@@ -77,8 +163,34 @@ func channelJoinedHandler(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
 			continue
 		}
 
-		// Save channel data
-		validChannels[channel.ParentID] = append(validChannels[channel.ParentID], channel)
+		// Check if channel is added already
+		var skip bool
+		for _, c := range validChannels[channel.ParentID] {
+			if c.Name == channel.Name {
+				skip = true
+				break
+			}
+		}
+
+		if !skip {
+			// Set ID as taken
+			var sep string = "#"
+			nameSlice := strings.Split(channel.Name, sep)
+			if len(nameSlice) == 1 {
+				sep = " "
+				nameSlice = strings.Split(channel.Name, sep)
+			}
+			channelNum, _ := strconv.Atoi(nameSlice[len(nameSlice)-1])
+			validNames[channelNum] = true
+
+			// Set name template
+			if nameTemplate == "" {
+				nameTemplate = nameSlice[0] + sep
+			}
+
+			// Save channel data
+			validChannels[channel.ParentID] = append(validChannels[channel.ParentID], channel)
+		}
 	}
 
 	// Find empty channels
@@ -115,10 +227,12 @@ func channelJoinedHandler(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
 
 		// Delete extra channels
 		if len(emptyChannels) > config.FreeChannelsBuffer {
-			for i := 0; i < (len(emptyChannels) - config.FreeChannelsBuffer); i++ {
+			for i := len(emptyChannels) - 1; i >= (config.FreeChannelsBuffer); i-- {
+				// Delete channel
 				_, err := s.ChannelDelete(emptyChannels[i].ID)
 				if err != nil {
 					log.Printf("failed to delete a channel: %v", err)
+					continue
 				}
 			}
 			continue
@@ -127,16 +241,27 @@ func channelJoinedHandler(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
 		// Add free channels
 		if len(emptyChannels) < config.FreeChannelsBuffer {
 			for i := 0; i < (config.FreeChannelsBuffer - len(emptyChannels)); i++ {
+				// Find next available id
+				var channelID int
+				for i := 1; true; i++ {
+					if !validNames[i] {
+						channelID = i
+						validNames[i] = true
+						break
+					}
+				}
+
+				// Create a channel
 				var chanData discordgo.GuildChannelCreateData
 				chanData.UserLimit = config.FreeChannelsUserLimit
 				chanData.Type = discordgo.ChannelTypeGuildVoice
-				chanData.Name = fmt.Sprintf("LFG #%v", 0)
+				chanData.Name = fmt.Sprintf("%v%v", nameTemplate, channelID)
 				chanData.ParentID = cat
-				chanData.Position = 0
 				_, err := s.GuildChannelCreateComplex(e.GuildID, chanData)
 				if err != nil {
 					log.Printf("failed to create a channel: %v", err)
 				}
+				validNames[channelID] = true
 			}
 			continue
 		}
