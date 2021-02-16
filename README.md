@@ -4,9 +4,16 @@ It will be a great addition to your server if you would like to declutter by rem
 
 How to start:
 * download the latest release from https://github.com/Cufee/botto-lfg/releases
-* get a Discord bot token and paste it into config/your_token_here.dat
-* rename config/your_token_here.dat to config/token.dat
+* run the executable to generate a config file
+* place your Discord Bot token into the config.json
+* adjust any other settings as needed
 * invite the bot to your server by generating and using OAuth2 Bot scope link
-* adjust config/config.go
 * run the executable
 * use b-watchcat categoryID to enable for a category, b-lookaway categoryID to disable
+
+Config File:
+ * "prefix": string - Prefix for bot commands
+ * "channels_buffer": int - How many free channels to keep around
+ * "channel_user_limit": int - User limit for dynamically created channels, leaving this at 0 will set the limit based on existing channels in the category
+ * "event_spacing": int - How ofter should the bot 
+ * "token": string - Your Discord Bot token
