@@ -1,4 +1,6 @@
-# botto-lfg
+# Botto-LFG
+### This is a lightweight but intelligent Discord Bot that keeps a certain number of free channels in a given category on your server with built-in optimizations for large servers.
+It will be a great addition to your server if you would like to declutter by removing unused channels dynamically, while being flexible in case more users want to join.
 
 How to start:
 * download the latest Release
