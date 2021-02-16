@@ -1,7 +1,8 @@
 # botto-lfg
 
-Setup:
-* Clone repo
-* add a token.dat file into the config folder
-* get a Discord bot token and paste it into token.dat
+How to start:
+* download the latest Release
+* get a Discord bot token and paste it into config/your_token_here.dat
+* rename config/your_token_here.dat to config/token.dat
+* invite the bot to your server by generating and using OAuth2 Bot scope link
 * use s-watchcat categoryID to enable for a category, s-lookaway categoryID to disable
