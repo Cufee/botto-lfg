@@ -15,5 +15,5 @@ Config File:
  * "prefix": string - Prefix for bot commands
  * "channels_buffer": int - How many free channels to keep around
  * "channel_user_limit": int - User limit for dynamically created channels, leaving this at 0 will set the limit based on existing channels in the category
- * "event_spacing": int - How ofter should the bot 
+ * "event_spacing": int - How ofter should the bot create/delete channels in seconds. I recommend increasing the timer for large servers to avoid spam.
  * "token": string - Your Discord Bot token
