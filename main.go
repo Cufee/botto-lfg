@@ -16,20 +16,23 @@ import (
 	"github.com/cufee/botto-lfg/utils"
 )
 
-var token string
+// Map of channels for limiting events
 var eventChan = make(map[string](chan int))
 
-func init() {
-	var err error
-	token, err = utils.LoadToken("config/token.dat")
-	if err != nil {
-		panic("please create a config/token.dat file and place a Discord Bot token in that file")
-	}
-}
+// Config data
+var cfg config.Data
 
 func main() {
+	cfg = config.Read()
+
+	// Check Token
+	if cfg.Token == "place_your_token_here" || cfg.Token == "" {
+		fmt.Println("You need to make a discord token and put it into config/config.json")
+		return
+	}
+
 	// Create a new Discord session using the provided bot token.
-	dg, err := discordgo.New("Bot " + token)
+	dg, err := discordgo.New("Bot " + cfg.Token)
 	if err != nil {
 		fmt.Println("error creating Discord session,", err)
 		return
@@ -64,7 +67,7 @@ func main() {
 
 // addCatCommand - Add a category for the bot to watch
 func addCatCommand(s *discordgo.Session, e *discordgo.MessageCreate) {
-	var command string = (config.BotPrefix + "watchcat")
+	var command string = (cfg.Prefix + "watchcat")
 	// Check for prefix
 	if !strings.HasPrefix(e.Content, command) {
 		return
@@ -93,7 +96,7 @@ func addCatCommand(s *discordgo.Session, e *discordgo.MessageCreate) {
 
 // removeCatCommand - Add a category for the bot to watch
 func removeCatCommand(s *discordgo.Session, e *discordgo.MessageCreate) {
-	var command string = (config.BotPrefix + "lookaway")
+	var command string = (cfg.Prefix + "lookaway")
 	// Check for prefix
 	if !strings.HasPrefix(e.Content, command) {
 		return
@@ -144,8 +147,8 @@ func voiceEvents(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
 	defer func() { <-guildChan }()
 
 	// Sleep to avoid spam
-	if config.UpdateDelataySec > 0 {
-		time.Sleep(time.Second * time.Duration(config.UpdateDelataySec))
+	if cfg.EventSpacing > 0 {
+		time.Sleep(time.Second * time.Duration(cfg.EventSpacing))
 	}
 
 	// Map to store member count per channel
@@ -240,12 +243,15 @@ func voiceEvents(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
 
 	// Check if channels need to be added or deleted
 	for cat, emptyChannels := range validChannels {
+		// Sleep to avoid spamming Discord API with requests
+		time.Sleep(time.Second)
+
 		// Sort channels by position
 		emptyChannels = utils.QuickSort(emptyChannels)
 
 		// Delete extra channels
-		if len(emptyChannels) > config.FreeChannelsBuffer {
-			for i := len(emptyChannels) - 1; i >= (config.FreeChannelsBuffer); i-- {
+		if len(emptyChannels) > cfg.ChannelsBuff {
+			for i := len(emptyChannels) - 1; i >= (cfg.ChannelsBuff); i-- {
 				// Delete channel
 				_, err := s.ChannelDelete(emptyChannels[i].ID)
 				if err != nil {
@@ -257,8 +263,8 @@ func voiceEvents(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
 		}
 
 		// Add free channels
-		if len(emptyChannels) < config.FreeChannelsBuffer {
-			for i := 0; i < (config.FreeChannelsBuffer - len(emptyChannels)); i++ {
+		if len(emptyChannels) < cfg.ChannelsBuff {
+			for i := 0; i < (cfg.ChannelsBuff - len(emptyChannels)); i++ {
 				// Find next available id
 				var channelID int
 				for i := 1; true; i++ {
@@ -271,8 +277,8 @@ func voiceEvents(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
 				// Create a channel
 				var chanData discordgo.GuildChannelCreateData
 
-				if config.FreeChannelsUserLimit > 0 { // User Limit set in config
-					chanData.UserLimit = config.FreeChannelsUserLimit
+				if cfg.ChannelsBuff > 0 { // User Limit set in config
+					chanData.UserLimit = cfg.ChannelsBuff
 				} else { // Limit based on category
 					chanData.UserLimit = userLimit[cat]
 				}

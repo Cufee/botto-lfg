@@ -10,16 +10,13 @@ import (
 var DB map[string][]string = make(map[string][]string)
 
 // DBPath - Path to database
-const DBPath string = "database/database.json"
+const DBPath string = "database.json"
 
 func readStorage() error {
 	// Open file
-	data, err := os.Open(DBPath)
+	data, err := os.OpenFile(DBPath, os.O_CREATE, 0644)
 	if err != nil {
-		data, err = os.Create(DBPath)
-		if err != nil {
-			return err
-		}
+		return err
 	}
 	defer data.Close()
 
@@ -31,12 +28,9 @@ func readStorage() error {
 
 func writeStorage() error {
 	// Open file
-	data, err := os.Open(DBPath)
+	data, err := os.OpenFile(DBPath, os.O_CREATE, 0644)
 	if err != nil {
-		data, err = os.Create(DBPath)
-		if err != nil {
-			return err
-		}
+		return err
 	}
 	defer data.Close()
 

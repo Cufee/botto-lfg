@@ -1,13 +1,57 @@
 package config
 
-// BotPrefix - valid prefix for the bot
-var BotPrefix string = "b-"
+import (
+	"encoding/json"
+	"io/ioutil"
+	"os"
+)
 
-// FreeChannelsBuffer - how many free channels to always keep available
-const FreeChannelsBuffer int = 3
+// Data - Config data struct
+type Data struct {
+	Prefix       string `json:"prefix"`
+	ChannelsBuff int    `json:"channels_buffer"`
+	UserLimit    int    `json:"channel_user_limit"`
+	EventSpacing int    `json:"event_spacing"`
+	Token        string `json:"token"`
+}
 
-// FreeChannelsUserLimit - how many free slots to make free channels with
-const FreeChannelsUserLimit int = 0 // If set to 0, largest userLimit in the category will be used
+// Defaults - Fill config with deaults
+func (c *Data) Defaults() {
+	c.Prefix = "b-"
+	c.UserLimit = 0
+	c.ChannelsBuff = 3
+	c.EventSpacing = 5
+	c.Token = "place_your_token_here"
+}
 
-// UpdateDelataySec - how long to wait after a user leaves a channel to delete/create empty channels, adding a delay will deduce spam
-const UpdateDelataySec int = 5
+// Read - Read local config file
+func Read() (currentConfig Data) {
+	// Open file
+	data, err := os.OpenFile("config.json", os.O_CREATE, 0644)
+	if err != nil {
+		data, err = os.Create("config.json")
+	}
+	defer data.Close()
+
+	// Unmarshal
+	byteValue, _ := ioutil.ReadAll(data)
+	json.Unmarshal(byteValue, &currentConfig)
+
+	// Check if config is empty
+	if (currentConfig) == (Data{}) {
+		// Marshal
+		currentConfig.Defaults()
+		file, err := json.MarshalIndent(&currentConfig, "", " ")
+		if err != nil {
+			panic(err)
+		}
+
+		// Write
+		_, err = data.Write(file)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	return currentConfig
+}

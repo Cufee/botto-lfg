@@ -1,2 +1,4 @@
 *token.dat
+*config.json
 *database.json
+build/*
