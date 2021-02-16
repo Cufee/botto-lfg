@@ -7,4 +7,4 @@ How to start:
 * invite the bot to your server by generating and using OAuth2 Bot scope link
 * adjust config/config.go
 * run the executable
-* use s-watchcat categoryID to enable for a category, s-lookaway categoryID to disable
+* use b-watchcat categoryID to enable for a category, b-lookaway categoryID to disable
