@@ -62,6 +62,13 @@ func EnableGuildCategory(guildID string, catID string) error {
 		return err
 	}
 
+	// Check if category already added
+	for _, c := range DB[guildID] {
+		if c == catID {
+			return nil
+		}
+	}
+
 	// Add category
 	DB[guildID] = append(DB[guildID], catID)
 

@@ -17,7 +17,7 @@ import (
 )
 
 var token string
-var eventChan = make(chan int, 1)
+var eventChan = make(map[string](chan int))
 
 func init() {
 	var err error
@@ -130,13 +130,18 @@ func voiceEvents(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
 	}
 
 	// Check for pending events
+	guildChan, ok := eventChan[e.GuildID]
+	if !ok {
+		guildChan = make(chan int, 1)
+		eventChan[e.GuildID] = guildChan
+	}
 	select {
-	case eventChan <- 1: // Put 1 in the channel unless it is full
+	case guildChan <- 1: // Put 1 in the channel unless it is full
 	default:
 		// Event pending, return
 		return
 	}
-	defer func() { <-eventChan }()
+	defer func() { <-guildChan }()
 
 	// Sleep to avoid spam
 	if config.UpdateDelataySec > 0 {
@@ -150,10 +155,13 @@ func voiceEvents(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
 	var enabledCats []string = database.GetGuildCategories(e.GuildID)
 
 	// Valid channel IDs
-	var validNames map[int]bool = make(map[int]bool)
+	var validNames map[string]map[int]bool = make(map[string]map[int]bool)
 
 	// Channel name template
-	var nameTemplate string
+	var nameTemplate map[string]string = make(map[string]string)
+
+	// Channel name template
+	var userLimit map[string]int = make(map[string]int)
 
 	// Get a list of channels
 	for _, channel := range guild.Channels {
@@ -180,11 +188,22 @@ func voiceEvents(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
 				nameSlice = strings.Split(channel.Name, sep)
 			}
 			channelNum, _ := strconv.Atoi(nameSlice[len(nameSlice)-1])
-			validNames[channelNum] = true
+
+			// Set number as used
+			_, ok := validNames[channel.ParentID]
+			if !ok {
+				validNames[channel.ParentID] = make(map[int]bool)
+			}
+			validNames[channel.ParentID][channelNum] = true
 
 			// Set name template
-			if nameTemplate == "" {
-				nameTemplate = nameSlice[0] + sep
+			if nameTemplate[channel.ParentID] == "" {
+				nameTemplate[channel.ParentID] = nameSlice[0] + sep
+			}
+
+			// Set user limit
+			if channel.UserLimit > userLimit[channel.ParentID] {
+				userLimit[channel.ParentID] = channel.UserLimit
 			}
 
 			// Save channel data
@@ -243,24 +262,30 @@ func voiceEvents(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
 				// Find next available id
 				var channelID int
 				for i := 1; true; i++ {
-					if !validNames[i] {
+					if !validNames[cat][i] {
 						channelID = i
-						validNames[i] = true
 						break
 					}
 				}
 
 				// Create a channel
 				var chanData discordgo.GuildChannelCreateData
-				chanData.UserLimit = config.FreeChannelsUserLimit
+
+				if config.FreeChannelsUserLimit > 0 { // User Limit set in config
+					chanData.UserLimit = config.FreeChannelsUserLimit
+				} else { // Limit based on category
+					chanData.UserLimit = userLimit[cat]
+				}
+
+				chanData.Name = fmt.Sprintf("%v%v", nameTemplate[cat], channelID)
 				chanData.Type = discordgo.ChannelTypeGuildVoice
-				chanData.Name = fmt.Sprintf("%v%v", nameTemplate, channelID)
 				chanData.ParentID = cat
+
 				_, err := s.GuildChannelCreateComplex(e.GuildID, chanData)
 				if err != nil {
 					log.Printf("failed to create a channel: %v", err)
 				}
-				validNames[channelID] = true
+				validNames[cat][channelID] = true
 			}
 			continue
 		}
