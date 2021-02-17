@@ -27,7 +27,7 @@ func (c *Data) Defaults() {
 // Read - Read local config file
 func Read() (currentConfig Data) {
 	// Open file
-	data, err := os.OpenFile("config.json", os.O_CREATE, 0644)
+	data, err := os.OpenFile("config.json", os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		data, err = os.Create("config.json")
 	}

@@ -28,7 +28,7 @@ func readStorage() error {
 
 func writeStorage() error {
 	// Open file
-	data, err := os.OpenFile(DBPath, os.O_CREATE, 0644)
+	data, err := os.OpenFile(DBPath, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return err
 	}
