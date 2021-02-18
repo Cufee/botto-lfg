@@ -277,8 +277,8 @@ func voiceEvents(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
 				// Create a channel
 				var chanData discordgo.GuildChannelCreateData
 
-				if cfg.ChannelsBuff > 0 { // User Limit set in config
-					chanData.UserLimit = cfg.ChannelsBuff
+				if cfg.UserLimit > 0 { // User Limit set in config
+					chanData.UserLimit = cfg.UserLimit
 				} else { // Limit based on category
 					chanData.UserLimit = userLimit[cat]
 				}
