@@ -125,13 +125,6 @@ func removeCatCommand(s *discordgo.Session, e *discordgo.MessageCreate) {
 
 // voiceEvents - Handler for voice stats updates
 func voiceEvents(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
-	// Get guild from State cache
-	guild, err := s.State.Guild(e.GuildID)
-	if err != nil {
-		log.Print("guild not found in state")
-		return
-	}
-
 	// Check for pending events
 	guildChan, ok := eventChan[e.GuildID]
 	if !ok {
@@ -149,6 +142,20 @@ func voiceEvents(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
 	// Sleep to avoid spam
 	if cfg.EventSpacing > 0 {
 		time.Sleep(time.Second * time.Duration(cfg.EventSpacing))
+	}
+
+	// Get a guild from state
+	guild, err := s.State.Guild(e.GuildID)
+	if err != nil {
+		log.Print("guild not found in state")
+		return
+	}
+
+	// Update guild in state
+	err = s.State.GuildAdd(guild)
+	if err != nil {
+		log.Print("failed to update guild in state")
+		return
 	}
 
 	// Map to store member count per channel
@@ -176,7 +183,7 @@ func voiceEvents(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
 		// Check if channel is added already
 		var skip bool
 		for _, c := range validChannels[channel.ParentID] {
-			if c.Name == channel.Name {
+			if c.ID == channel.ID {
 				skip = true
 				break
 			}
