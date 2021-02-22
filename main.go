@@ -145,7 +145,7 @@ func voiceEvents(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
 	}
 
 	// Get a guild from state
-	guild, err := s.State.Guild(e.GuildID)
+	guild, err := s.Guild(e.GuildID)
 	if err != nil {
 		log.Print("guild not found in state")
 		return
@@ -157,6 +157,8 @@ func voiceEvents(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
 		log.Print("failed to update guild in state")
 		return
 	}
+
+	guild, _ = s.State.Guild(e.GuildID)
 
 	// Map to store member count per channel
 	var validChannels map[string][]*discordgo.Channel = make(map[string][]*discordgo.Channel)
